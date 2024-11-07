@@ -10,109 +10,101 @@ class CurriculumLearning:
         self.stages = [
             {
                 "name": "basic_catching",
-                "n_catchers": 2,
-                "n_runners": 1,
-                "difficulty": "easy",
-                "reward_weights": {
-                    "capture": 1.0,
-                    "collision": -0.5,
-                    "distance": 0.3
-                },
                 "conditions": {
-                    "min_success_rate": 0.7,
-                    "min_episodes": 1000
+                    "min_success_rate": 0.6,
+                    "min_episodes": 100,
+                    "max_collision_rate": 0.3,
+                    "min_avg_reward": -1.0
                 },
-                "env_config": {
-                    "grid_size": 10,
-                    "max_steps": 100,
+                "config": {
+                    "grid_size": 20,
+                    "n_catchers": 2,
+                    "n_runners": 1,
                     "obstacle_density": 0.0
                 }
             },
             {
                 "name": "intermediate_catching",
-                "n_catchers": 2,
-                "n_runners": 1,
-                "difficulty": "medium",
-                "reward_weights": {
-                    "capture": 1.0,
-                    "collision": -1.0,
-                    "distance": 0.2
-                },
                 "conditions": {
-                    "min_success_rate": 0.6,
-                    "min_episodes": 1500
+                    "min_success_rate": 0.7,
+                    "min_episodes": 200,
+                    "max_collision_rate": 0.2,
+                    "min_avg_reward": 0.0
                 },
-                "env_config": {
-                    "grid_size": 15,
-                    "max_steps": 150,
+                "config": {
+                    "grid_size": 30,
+                    "n_catchers": 2,
+                    "n_runners": 1,
                     "obstacle_density": 0.1
-                }
-            },
-            {
-                "name": "advanced_catching",
-                "n_catchers": 3,
-                "n_runners": 2,
-                "difficulty": "hard",
-                "reward_weights": {
-                    "capture": 1.0,
-                    "collision": -1.5,
-                    "distance": 0.1
-                },
-                "conditions": {
-                    "min_success_rate": 0.5,
-                    "min_episodes": 2000
-                },
-                "env_config": {
-                    "grid_size": 20,
-                    "max_steps": 200,
-                    "obstacle_density": 0.2
                 }
             }
         ]
         self.current_stage = 0
-        self.stage_history = []  # 스테이지 진행 기록
+        self.episode_count = 0
+        self.metrics_history = {
+            "success_rates": [],
+            "collision_rates": [],
+            "average_rewards": []
+        }
 
     def get_current_config(self) -> Dict:
-        """현재 스테이지 설정 반환"""
-        return self.stages[self.current_stage]
+        """현재 스테이지의 환경 설정 반환"""
+        return self.stages[self.current_stage]["config"]
 
     def check_stage_completion(self, metrics: Dict) -> bool:
         """
         현재 스테이지 완료 여부 확인
-        Args:
-            metrics: 현재 성능 지표
-                - success_rate: 포획 성공률
-                - episodes: 진행된 에피소드 수
         """
+        self.episode_count += 1
+        
+        # 메트릭 히스토리 업데이트
+        self.metrics_history["success_rates"].append(metrics["success_rate"])
+        self.metrics_history["collision_rates"].append(metrics["collision_rate"])
+        self.metrics_history["average_rewards"].append(metrics["average_reward"])
+        
+        # 최근 100 에피소드의 평균 계산
+        window_size = min(100, len(self.metrics_history["success_rates"]))
+        avg_success_rate = np.mean(self.metrics_history["success_rates"][-window_size:])
+        avg_collision_rate = np.mean(self.metrics_history["collision_rates"][-window_size:])
+        avg_reward = np.mean(self.metrics_history["average_rewards"][-window_size:])
+        
         current = self.stages[self.current_stage]
         conditions = current["conditions"]
         
-        # 모든 조건 충족 확인
-        success_condition = metrics["success_rate"] >= conditions["min_success_rate"]
-        episode_condition = metrics["episodes"] >= conditions["min_episodes"]
+        # 조건 체크
+        success_condition = avg_success_rate >= conditions["min_success_rate"]
+        episode_condition = self.episode_count >= conditions["min_episodes"]
+        collision_condition = avg_collision_rate <= conditions["max_collision_rate"]
+        reward_condition = avg_reward >= conditions["min_avg_reward"]
         
-        if success_condition and episode_condition:
-            # 스테이지 완료 기록
-            self.stage_history.append({
-                "stage": self.current_stage,
-                "name": current["name"],
-                "episodes": metrics["episodes"],
-                "success_rate": metrics["success_rate"]
-            })
+        # 현재 성능 출력
+        print(f"\nCurrent Performance (Stage {self.current_stage}):")
+        print(f"Success Rate: {avg_success_rate:.3f} (target: {conditions['min_success_rate']})")
+        print(f"Collision Rate: {avg_collision_rate:.3f} (target: {conditions['max_collision_rate']})")
+        print(f"Average Reward: {avg_reward:.3f} (target: {conditions['min_avg_reward']})")
+        print(f"Episodes: {self.episode_count} (target: {conditions['min_episodes']})")
+        
+        # 모든 조건이 만족되면 True 반환
+        if success_condition and episode_condition and collision_condition and reward_condition:
+            print(f"\nStage {current['name']} completed!")
             return True
             
         return False
 
-    def advance_stage(self) -> bool:
-        """
-        다음 스테이지로 진행
-        Returns:
-            bool: 다음 스테이지 존재 여부
-        """
+    def advance_stage(self) -> None:
+        """다음 스테이지로 진행"""
         if self.current_stage < len(self.stages) - 1:
             self.current_stage += 1
-            return True
-        return False
+            print(f"\nAdvancing to stage: {self.stages[self.current_stage]['name']}")
+            # 새 스테이지 시작 시 메트릭 초기화
+            self.episode_count = 0
+            self.metrics_history = {
+                "success_rates": [],
+                "collision_rates": [],
+                "average_rewards": []
+            }
+        else:
+            print("\nAll stages completed!")
 
     def adjust_rewards(self, base_rewards: Dict) -> Dict:
         """

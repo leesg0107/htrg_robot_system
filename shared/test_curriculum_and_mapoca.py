@@ -7,33 +7,44 @@ def test_mapoca_basic():
     """MA-POCA 기본 기능 테스트"""
     print("\n=== MA-POCA 기본 기능 테스트 ===")
     
-    # 설정
+    # 설정 보강
     config = {
-        'state_dim': 10,  # 간단한 테스트를 위한 작은 차원
+        'state_dim': 10,
         'action_dim': 2,
         'n_agents': 3,
         'device': 'cpu',
-        'batch_size': 4
+        'batch_size': 4,
+        'gamma': 0.99,
+        'lambda': 0.95,
+        'epsilon': 0.2,
+        'policy_lr': 3e-4,
+        'value_lr': 1e-3
+    }
+    
+    # 메트릭 추가
+    metrics = {
+        'episode_rewards': [],
+        'success_rate': 0.0,
+        'collision_rate': 0.0
     }
     
     mapoca = MAPOCA(config)
     
-    # 가상의 배치 데이터 생성
+    # 테스트 배치에 더 현실적인 데이터 추가
     batch = {
-        'states': torch.randn(4, 3, 10),  # (batch_size, n_agents, state_dim)
-        'actions': torch.randn(4, 3, 2),  # (batch_size, n_agents, action_dim)
+        'states': torch.randn(4, 3, 10),
+        'actions': torch.randn(4, 3, 2).clamp(-1, 1),  # 행동 범위 제한
         'old_probs': torch.randn(4, 3, 2),
-        'rewards': torch.randn(4, 3),
+        'rewards': torch.randn(4, 3) * 0.1,  # 보상 스케일 조정
         'dones': torch.zeros(4, 3, dtype=torch.bool)
     }
     
-    # 행동 선택 테스트
+    # 성능 지표 출력 추가
     state = torch.randn(1, 10)
     action = mapoca.select_action(state)
     print(f"Action shape: {action.shape}")
     print(f"Action range: [{action.min():.3f}, {action.max():.3f}]")
     
-    # 업데이트 테스트
     losses = mapoca.update(batch)
     print("\nTraining losses:")
     for key, value in losses.items():
@@ -60,7 +71,7 @@ def test_mapoca_with_curriculum():
     mapoca = MAPOCA(config)
     
     # 간단한 학습 루프 시뮬레이션
-    n_episodes = 5
+    n_episodes = 10 
     for episode in range(n_episodes):
         print(f"\n에피소드 {episode + 1}")
         

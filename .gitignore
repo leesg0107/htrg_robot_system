@@ -2,4 +2,6 @@ shared/env/venv
 shared/agents/__pycache__
 shared/models/__pycache__
 shared/utils/__pycache__
-
+shared/__pycache__
+checkpoints/
+logs/
